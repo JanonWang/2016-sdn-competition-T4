@@ -1,0 +1,26 @@
+Manifest-Version: 1.0
+Bnd-LastModified: 1461253041396
+Build-Jdk: 1.8.0_77
+Built-By: janon
+Bundle-Blueprint: OSGI-INF/blueprint/shell-config.xml
+Bundle-Description: SdnCompetition-T4111
+Bundle-License: http://www.apache.org/licenses/LICENSE-2.0.txt
+Bundle-ManifestVersion: 2
+Bundle-Name: SdnCompetition
+Bundle-SymbolicName: org.onosproject.SdnCompetition
+Bundle-Version: 1.5.1.SNAPSHOT
+Created-By: Apache Maven Bundle Plugin
+Export-Package: org.onosproject.SdnCompetition;uses:="org.apache.karaf.s
+ hell.commands,org.onosproject.cli,org.onosproject.core,org.onosproject.
+ net.flow,org.onosproject.net.packet";version="1.5.1"
+Import-Package: org.apache.karaf.shell.commands;version="[3.0,4)",org.on
+ lab.packet;version="[1.5,2)",org.onosproject.cli;version="[1.5,2)",org.
+ onosproject.core;version="[1.5,2)",org.onosproject.net;version="[1.5,2)
+ ",org.onosproject.net.flow;version="[1.5,2)",org.onosproject.net.flow.i
+ nstructions;version="[1.5,2)",org.onosproject.net.packet;version="[1.5,
+ 2)",org.osgi.service.blueprint;version="[1.0.0,2.0.0)",org.slf4j;versio
+ n="[1.7,2)"
+Require-Capability: osgi.ee;filter:="(&(osgi.ee=JavaSE)(version=1.8))"
+Service-Component: OSGI-INF/org.onosproject.SdnCompetition.InstallRules.
+ xml
+Tool: Bnd-3.0.0.201509101326
