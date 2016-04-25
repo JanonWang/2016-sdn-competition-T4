@@ -27,7 +27,8 @@ import org.onosproject.net.packet.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Created by Janon Wang on 2016/4/11
@@ -40,7 +41,6 @@ public class InstallRules implements InstallRulesService {
     private static final int HIGH_PRIORITY = 12;
     private static final int TABLE1 = 1;
     private static final int TABLE0 = 0;
-    //private static final short vlanId = 666;
 
     private final Logger log = LoggerFactory.getLogger(getClass());
 
@@ -53,30 +53,15 @@ public class InstallRules implements InstallRulesService {
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected PacketService packetService;
 
-//    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-//    protected HostService hostService;
-
     private ApplicationId appId;
     private PacketProcessor validateProcess = new ValidateProcess();
-    //private ValidatedPath validatedPath = new ValidatedPath();
-
-    //host ip
-//    private static final String h1_ip = "192.168.0.1/24";
-//    private static final String h2_ip = "192.168.0.2/24";
-//    private static final String d1_ip = "192.168.0.3/24";
-//    private static final String d2_ip = "192.168.0.4/24";
+    private List<DeviceId> deviceIdList = new ArrayList<>();
 
     //host mac
     private static final String h1_mac = "00:00:00:00:00:01";
     private static final String h2_mac = "00:00:00:00:00:02";
     private static final String d1_mac = "00:00:00:00:00:03";
     private static final String d2_mac = "00:00:00:00:00:04";
-
-    //host ip without mask
-//    private static final String h1_ip_s = "192.168.0.1";
-//    private static final String h2_ip_s = "192.168.0.2";
-//    private static final String d1_ip_s = "192.168.0.3";
-//    private static final String d2_ip_s = "192.168.0.4";
 
     //DeviceId
     private static final DeviceId s1_id = DeviceId.deviceId("of:0000000000000001");
@@ -104,9 +89,6 @@ public class InstallRules implements InstallRulesService {
 
     @Activate
     protected void activate() {
-//        install();
-//        installValidatedRules();
-//        packetService.addProcessor(validateProcess, PacketProcessor.director(2));
         appId = coreService.registerApplication("org.onosproject.SdnCompetition");
         log.info("Started");
     }
@@ -114,7 +96,6 @@ public class InstallRules implements InstallRulesService {
     @Deactivate
     protected void deactivate() {
         flowRuleService.removeFlowRulesById(appId);
-//        packetService.removeProcessor(validateProcess);
         log.info("Stopped");
     }
     //install the static flow rules
@@ -146,7 +127,7 @@ public class InstallRules implements InstallRulesService {
         //H1---D2-opposite
         installOneRulesTable1(d2_mac, h1_mac, s4_id, s4s3);
         installOneRulesTable1(d2_mac, h1_mac, s3_id, s3s1);
-        installOneRulesTable1(d2_mac, h1_mac, s1_id, s1h2);
+        installOneRulesTable1(d2_mac, h1_mac, s1_id, s1h1);
 
         //H2--->D2-positive
         installOneRulesTable1(h2_mac, d2_mac, s1_id, s1s2);
@@ -162,24 +143,23 @@ public class InstallRules implements InstallRulesService {
     public void startValidatePath() {
         //init the count number
         count = 1;
+        //init the deviceId list
+        deviceIdList.clear();
         //install the ping packet to validate the path
         installValidatedRules();
-        //validatedPath.clear();
-//        srcIp4Address = srcIp;
-//        dstIp4Address = dstIp;
-        //add a process to handle the packet_in msg
         packetService.addProcessor(validateProcess, PacketProcessor.director(2));
     }
 
     public void restartValidatePath() {
         //init the count number
         count = 1;
+        //init the deviceId list
+        deviceIdList.clear();
+        //install the ping packet to validate the path
         installValidatedRules();
     }
 
     public void stopValidatePath() {
-        //cover the validatedRules to stop trans the ICMP packet to controller
-        //installTable0Rules();
         packetService.removeProcessor(validateProcess);
     }
 
@@ -188,7 +168,6 @@ public class InstallRules implements InstallRulesService {
     private void installTable0Rules() {
         TrafficSelector trafficSelector = DefaultTrafficSelector.builder().
                 matchEthType(Ethernet.TYPE_IPV4).
-                //matchIPProtocol(IPv4.PROTOCOL_ICMP).
                 build();
         TrafficTreatment trafficTreatment = DefaultTrafficTreatment.builder().
                         add(Instructions.transition(TABLE1)).
@@ -209,21 +188,15 @@ public class InstallRules implements InstallRulesService {
         //the forwarding rules will be install in the table1
         FlowRule flowRule = buildFlowRule(trafficTreatment, trafficSelector, deviceid, TABLE1, DEFAULT_PRIORITY);
         flowRuleService.applyFlowRules(flowRule);
-//        ForwardingObjective forwardingObjective = buildForwardingObjective(trafficTreatment, trafficSelector);
-//        flowObjectiveService.forward(deviceid, forwardingObjective);
         return;
     }
 
     private TrafficSelector buildTrafficSelector (String srcMac, String dstMac) {
-//        Ip4Prefix matchIp4SrcPrefix = Ip4Prefix.valueOf(srcIp);
-//        Ip4Prefix matchIp4DstPrefix = Ip4Prefix.valueOf(dstIp);
         MacAddress matchSrcMac = MacAddress.valueOf(srcMac);
         MacAddress matchDstMac = MacAddress.valueOf(dstMac);
         TrafficSelector trafficelector = DefaultTrafficSelector.builder()
                 .matchEthSrc(matchSrcMac)
                 .matchEthDst(matchDstMac)
-//                .matchIPSrc(matchIp4SrcPrefix)
-//                .matchIPDst(matchIp4DstPrefix)
                 .build();
         return trafficelector;
     }
@@ -233,27 +206,6 @@ public class InstallRules implements InstallRulesService {
                 .setOutput(portNumber).build();
         return trafficTreatment;
     }
-
-//    private ForwardingObjective buildForwardingObjective (TrafficTreatment trafficTreatment,
-//                                                          TrafficSelector trafficSelector) {
-//        ForwardingObjective forwardingObjective = DefaultForwardingObjective.builder()
-//                .withPriority(DEFAULT_PRIORITY)
-//                .withFlag(ForwardingObjective.Flag.VERSATILE)
-//                .fromApp(appId)
-//                .makePermanent()
-//                .withSelector(trafficSelector)
-//                .withTreatment(trafficTreatment)
-//                .add();
-//        return forwardingObjective;
-//    }
-
-
-
-
-
-
-
-
 
     private void installValidatedRules() {
         TrafficSelector trafficSelector = DefaultTrafficSelector.builder().
@@ -268,20 +220,6 @@ public class InstallRules implements InstallRulesService {
         FlowRule flowRule2 = buildFlowRule(trafficTreatment, trafficSelector, s2_id, TABLE0, HIGH_PRIORITY);
         FlowRule flowRule3 = buildFlowRule(trafficTreatment, trafficSelector, s3_id, TABLE0, HIGH_PRIORITY);
         FlowRule flowRule4 = buildFlowRule(trafficTreatment, trafficSelector, s4_id, TABLE0, HIGH_PRIORITY);
-        //every device table0 will be installed this flowRules with default priority
-//        TrafficSelector trafficSelector1 = DefaultTrafficSelector.builder().
-//                matchEthType(Ethernet.TYPE_IPV4).
-//                build();
-//        TrafficTreatment trafficTreatment1 = DefaultTrafficTreatment.builder().
-//                immediate().
-//                add(Instructions.popVlan()).
-//                add(Instructions.transition(TABLE1)).
-//                build();
-//        FlowRule flowRule5 = buildFlowRule(trafficTreatment1, trafficSelector1, s1_id, TABLE0, DEFAULT_PRIORITY);
-//        FlowRule flowRule6 = buildFlowRule(trafficTreatment1, trafficSelector1, s2_id, TABLE0, DEFAULT_PRIORITY);
-//        FlowRule flowRule7 = buildFlowRule(trafficTreatment1, trafficSelector1, s3_id, TABLE0, DEFAULT_PRIORITY);
-//        FlowRule flowRule8 = buildFlowRule(trafficTreatment1, trafficSelector1, s4_id, TABLE0, DEFAULT_PRIORITY);
-        //apply the flow rules
         flowRuleService.applyFlowRules(flowRule1, flowRule2, flowRule3, flowRule4);
         return;
     }
@@ -290,7 +228,6 @@ public class InstallRules implements InstallRulesService {
         TrafficSelector trafficSelector = DefaultTrafficSelector.builder().
                 matchEthType(Ethernet.TYPE_IPV4).
                 build();
-        //when the vs receive the packet, it will notice the controller
         TrafficTreatment trafficTreatment = DefaultTrafficTreatment.builder().
                 add(Instructions.createOutput(PortNumber.CONTROLLER)).
                 build();
@@ -313,9 +250,6 @@ public class InstallRules implements InstallRulesService {
         return flowRule;
     }
 
-
-
-
     private  class ValidateProcess implements PacketProcessor {
         public void process(PacketContext packetContext) {
             Ethernet ethernet = packetContext.inPacket().parsed();
@@ -328,8 +262,6 @@ public class InstallRules implements InstallRulesService {
                 TrafficTreatment trafficTreatment = DefaultTrafficTreatment.builder().
                         add(Instructions.createOutput(PortNumber.TABLE)).
                         build();
-                //push an vlanId on the OutboundPacket to avoid matching the "to-controller" rules
-                //Ethernet ethWithVlanId = packetContext.inPacket().parsed().setVlanID(vlanId);
                 DefaultOutboundPacket defaultOutboundPacket = new DefaultOutboundPacket(deviceId, trafficTreatment,
                         packetContext.inPacket().unparsed());
                 //packet out to the table
@@ -342,6 +274,21 @@ public class InstallRules implements InstallRulesService {
                  */
             }
         }
+
+        private void recordPath(PacketContext packetContext) {
+            DeviceId deviceId = packetContext.inPacket().receivedFrom().deviceId();
+            Ethernet ethernet = packetContext.inPacket().parsed();
+            MacAddress srcMac = ethernet.getSourceMAC();
+            MacAddress dstMac = ethernet.getDestinationMAC();
+            //TODO --- it will record muilt times without a deviceIdList
+            if(!deviceIdList.contains(deviceId)) {
+                String logResult = "The NO."+count+" switch on the path between "+srcMac.toString()+" and "
+                        +dstMac.toString()+" is "+deviceId.toString();
+                log.info(logResult);
+                deviceIdList.add(deviceId);
+                count++;
+            }
+        }
     }
 
     private boolean isIcmpRequest(Ethernet ethnet) {
@@ -349,19 +296,6 @@ public class InstallRules implements InstallRulesService {
                 ((IPv4)ethnet.getPayload()).getProtocol() == IPv4.PROTOCOL_ICMP;
     }
 
-    private void recordPath(PacketContext packetContext) {
-        DeviceId deviceId = packetContext.inPacket().receivedFrom().deviceId();
-        Ethernet ethernet = packetContext.inPacket().parsed();
-        MacAddress srcMac = ethernet.getSourceMAC();
-        MacAddress dstMac = ethernet.getDestinationMAC();
-//        Ip4Address srcIp = Ip4Address.valueOf(((IPv4)ethernet.getPayload()).getSourceAddress());
-//        Ip4Address dstIp = Ip4Address.valueOf(((IPv4)ethernet.getPayload()).getDestinationAddress());
-
-        String logResult = "The NO."+count+" switch on the path between "+srcMac.toString()+" and "
-                    +dstMac.toString()+" is "+deviceId.toString();
-        count++;
-        log.info(logResult);
-    }
 
 
 
