@@ -98,10 +98,14 @@ public class InstallRules implements InstallRulesService {
         flowRuleService.removeFlowRulesById(appId);
         log.info("Stopped");
     }
-    //install the static flow rules
+
+    /**
+     * when input fnl-rules install command, this function will run.
+     */
     public void install() {
-        //install the rules to trans ICMP packet to Table1
+        //install the flow rules to trans ipv4 packet to Table1
         installTable0Rules();
+        //Next is the flow rules to install on Table1
         //H1--->D1-positive
         installOneRulesTable1(h1_mac, d1_mac, s1_id, s1s2);
         installOneRulesTable1(h1_mac, d1_mac, s2_id, s2s4);
@@ -137,34 +141,44 @@ public class InstallRules implements InstallRulesService {
         installOneRulesTable1(d2_mac, h2_mac, s4_id, s4s2);
         installOneRulesTable1(d2_mac, h2_mac, s2_id, s2s1);
         installOneRulesTable1(d2_mac, h2_mac, s1_id, s1h2);
-        return;
     }
 
+    /**
+     * when input fnl-rules validate command, this function will run.
+     */
     public void startValidatePath() {
         //init the count number
         count = 1;
         //init the deviceId list
         deviceIdList.clear();
-        //install the ping packet to validate the path
+        //install the flow rules to trans the ICMP packet to controller
         installValidatedRules();
+        //add an process in the controller to receive the ICMP packet
         packetService.addProcessor(validateProcess, PacketProcessor.director(2));
     }
 
+    /**
+     * when input fnl-rules revalidate command, this function will run.
+     */
     public void restartValidatePath() {
         //init the count number
         count = 1;
         //init the deviceId list
         deviceIdList.clear();
-        //install the ping packet to validate the path
+        //install the flow rules to trans the ICMP packet to controller
         installValidatedRules();
     }
 
+    /**
+     * when input fnl-rules stopvalidate command, this function will run.
+     */
     public void stopValidatePath() {
         packetService.removeProcessor(validateProcess);
     }
 
-
-
+    /**
+     * install the flow rules on Table0 on all device to transmit the ipv4 packet to table1.
+     */
     private void installTable0Rules() {
         TrafficSelector trafficSelector = DefaultTrafficSelector.builder().
                 matchEthType(Ethernet.TYPE_IPV4).
@@ -178,9 +192,15 @@ public class InstallRules implements InstallRulesService {
         FlowRule flowRule3 = buildFlowRule(trafficTreatment, trafficSelector, s3_id, TABLE0, DEFAULT_PRIORITY);
         FlowRule flowRule4 = buildFlowRule(trafficTreatment, trafficSelector, s4_id, TABLE0, DEFAULT_PRIORITY);
         flowRuleService.applyFlowRules(flowRule1, flowRule2, flowRule3, flowRule4);
-        return;
     }
 
+    /**
+     * instal the flow rules that transmit the packet to the next device.
+     * @param srcMac the source mac address
+     * @param dstMac the destination mac address
+     * @param deviceid the device to install the flow rules
+     * @param portNumber the port number on the device to transmit the packet out
+     */
     private void installOneRulesTable1(String srcMac, String dstMac,
                                  DeviceId deviceid, long portNumber){
         TrafficSelector trafficSelector = buildTrafficSelector(srcMac, dstMac);
@@ -188,28 +208,40 @@ public class InstallRules implements InstallRulesService {
         //the forwarding rules will be install in the table1
         FlowRule flowRule = buildFlowRule(trafficTreatment, trafficSelector, deviceid, TABLE1, DEFAULT_PRIORITY);
         flowRuleService.applyFlowRules(flowRule);
-        return;
     }
 
+    /**
+     * Build a traffic selector with the param.
+     * @param srcMac the source mac address
+     * @param dstMac the destination mac address
+     * @return the constructed traffic selector
+     */
     private TrafficSelector buildTrafficSelector (String srcMac, String dstMac) {
         MacAddress matchSrcMac = MacAddress.valueOf(srcMac);
         MacAddress matchDstMac = MacAddress.valueOf(dstMac);
-        TrafficSelector trafficelector = DefaultTrafficSelector.builder()
+        return DefaultTrafficSelector.builder()
                 .matchEthSrc(matchSrcMac)
                 .matchEthDst(matchDstMac)
                 .build();
-        return trafficelector;
     }
 
+    /**
+     * Build a traffic treatment with the param.
+     * @param portNumber the port number transmit the packet out
+     * @return the constructed traffic treatment
+     */
     private TrafficTreatment buildTrafficTreatment (PortNumber portNumber) {
-        TrafficTreatment trafficTreatment = DefaultTrafficTreatment.builder()
+        return DefaultTrafficTreatment.builder()
                 .setOutput(portNumber).build();
-        return trafficTreatment;
     }
 
+    /**
+     * install the flow rules that transmit the ICMP pakcet the controller on all the device.
+     */
     private void installValidatedRules() {
         TrafficSelector trafficSelector = DefaultTrafficSelector.builder().
                  matchEthType(Ethernet.TYPE_IPV4).
+                 matchIPProtocol(IPv4.PROTOCOL_ICMP).
                  build();
         //when the vs receive the packet, it will notice the controller
         TrafficTreatment trafficTreatment = DefaultTrafficTreatment.builder().
@@ -221,12 +253,16 @@ public class InstallRules implements InstallRulesService {
         FlowRule flowRule3 = buildFlowRule(trafficTreatment, trafficSelector, s3_id, TABLE0, HIGH_PRIORITY);
         FlowRule flowRule4 = buildFlowRule(trafficTreatment, trafficSelector, s4_id, TABLE0, HIGH_PRIORITY);
         flowRuleService.applyFlowRules(flowRule1, flowRule2, flowRule3, flowRule4);
-        return;
     }
 
+    /**
+     * remove the flow rules that transmit the ICMP pakcet the controller on the specific device.
+     * @param deviceId the device Id to install the flow rules
+     */
     private void removeValidateRule(DeviceId deviceId) {
         TrafficSelector trafficSelector = DefaultTrafficSelector.builder().
                 matchEthType(Ethernet.TYPE_IPV4).
+                matchIPProtocol(IPv4.PROTOCOL_ICMP).
                 build();
         TrafficTreatment trafficTreatment = DefaultTrafficTreatment.builder().
                 add(Instructions.createOutput(PortNumber.CONTROLLER)).
@@ -235,9 +271,18 @@ public class InstallRules implements InstallRulesService {
         flowRuleService.removeFlowRules(flowRule);
     }
 
+    /**
+     * Build a flow rules with the param.
+     * @param trafficTreatment traffic treatment with action
+     * @param trafficSelector traffic selector to match the packet
+     * @param deviceId the deivce to install the flow rules
+     * @param tableId the table on the device to install the flow rules
+     * @param priority flow rules priority, set default to 11, abocve the fwd module
+     * @return the constructed flow rules
+     */
     private FlowRule buildFlowRule(TrafficTreatment trafficTreatment, TrafficSelector trafficSelector,
                                    DeviceId deviceId, int tableId, int priority) {
-        FlowRule flowRule = DefaultFlowRule.builder().
+        return  DefaultFlowRule.builder().
                 fromApp(appId).
                 withPriority(priority).
                 forDevice(deviceId).
@@ -247,18 +292,21 @@ public class InstallRules implements InstallRulesService {
                 //all the flow rules will be permanent
                 makePermanent().
                 build();
-        return flowRule;
     }
 
+    /**
+     * The process to receive the packet and handle the packet
+     */
     private  class ValidateProcess implements PacketProcessor {
         public void process(PacketContext packetContext) {
             Ethernet ethernet = packetContext.inPacket().parsed();
-            if(isIcmpRequest(ethernet)) {//use ping packet to validate the path
+            //filter the ICMP packet
+            if(isIcmpRequest(ethernet)) {
                 recordPath(packetContext);
-                //delete the flow which send the packet to controller
+                //delete the flow rules  which send the packet to controller on the specific device
                 DeviceId deviceId = packetContext.inPacket().receivedFrom().deviceId();
                 removeValidateRule(deviceId);
-                //send the packet back
+                //send the packet back to teh device
                 TrafficTreatment trafficTreatment = DefaultTrafficTreatment.builder().
                         add(Instructions.createOutput(PortNumber.TABLE)).
                         build();
@@ -266,21 +314,19 @@ public class InstallRules implements InstallRulesService {
                         packetContext.inPacket().unparsed());
                 //packet out to the table
                 packetService.emit(defaultOutboundPacket);
-            } else {
-                /**
-                 * TODO--if the packet is not a ICMP packet,how to handle it.
-                 * Now the normal packet will be block when pwd is closed and
-                 * validatePath function is on
-                 */
             }
         }
 
+        /**
+         * record the deviceId.
+         * @param packetContext the packet send to the controller
+         */
         private void recordPath(PacketContext packetContext) {
             DeviceId deviceId = packetContext.inPacket().receivedFrom().deviceId();
             Ethernet ethernet = packetContext.inPacket().parsed();
             MacAddress srcMac = ethernet.getSourceMAC();
             MacAddress dstMac = ethernet.getDestinationMAC();
-            //TODO --- it will record muilt times without a deviceIdList
+            //FIXME --- it will record the same deviceId muilt times without deviceIdList
             if(!deviceIdList.contains(deviceId)) {
                 String logResult = "The NO."+count+" switch on the path between "+srcMac.toString()+" and "
                         +dstMac.toString()+" is "+deviceId.toString();
@@ -289,38 +335,14 @@ public class InstallRules implements InstallRulesService {
                 count++;
             }
         }
+
+        /**
+         * judge if it is an ICMP packet.
+         * @param ethnet the ethernet frame
+         */
+        private boolean isIcmpRequest(Ethernet ethnet) {
+            return ethnet.getEtherType() == Ethernet.TYPE_IPV4 &&
+                    ((IPv4)ethnet.getPayload()).getProtocol() == IPv4.PROTOCOL_ICMP;
+        }
     }
-
-    private boolean isIcmpRequest(Ethernet ethnet) {
-        return ethnet.getEtherType() == Ethernet.TYPE_IPV4 &&
-                ((IPv4)ethnet.getPayload()).getProtocol() == IPv4.PROTOCOL_ICMP;
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 }

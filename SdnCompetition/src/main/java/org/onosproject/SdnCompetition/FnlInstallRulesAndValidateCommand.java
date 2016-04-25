@@ -10,7 +10,7 @@ import org.onosproject.cli.AbstractShellCommand;
 @Command(scope = "onos", name = "fnl-rules",
         description = "Install the static flow entry and validate the path for the 2016 SDN Competition T4")
 public class FnlInstallRulesAndValidateCommand extends AbstractShellCommand {
-    @Argument(index = 0, name = "userOptions", description = "i for install rules and v for validate the ValidatedPath",
+    @Argument(index = 0, name = "userOptions", description = "function options",
             required = true, multiValued = false)
     String userOption = null;
 
@@ -23,8 +23,6 @@ public class FnlInstallRulesAndValidateCommand extends AbstractShellCommand {
             service.install();
             return;
         } else if (userOption.equals("validate")) {
-//            Ip4Address srcIp4Address = Ip4Address.valueOf(srcIp);
-//            Ip4Address dstIpAddress = Ip4Address.valueOf(dstIp);
             service.startValidatePath();
             return;
         } else if (userOption.equals("revalidate")) {
